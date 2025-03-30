@@ -35,16 +35,21 @@ resource "aws_launch_template" "windows_template" {
 <powershell>
 Start-Transcript -Path "C:\\bootstrap-log.txt"
 
-# Install IIS
-Install-WindowsFeature -name Web-Server -IncludeManagementTools
+# Install .NET 6 Runtime (Required for running the microservice)
+$dotnetInstaller = "C:\\dotnet-runtime.exe"
+Invoke-WebRequest -Uri "https://download.visualstudio.microsoft.com/download/pr/3b82b57e-a631-4b61-96e8-5c62f1e1f6c6/7c9c3e424b6b1b4cb7e9a9f384ef9728/dotnet-runtime-6.0.26-win-x64.exe" -OutFile $dotnetInstaller
+Start-Process -FilePath $dotnetInstaller -ArgumentList "/quiet /norestart" -Wait
 
 # Deploy Microservice
 Invoke-WebRequest -Uri "https://dev-swimlaneartifacts.s3.us-east-1.amazonaws.com/windows-microservice.zip" -OutFile "C:\\deploy.zip"
+Expand-Archive -Path "C:\\deploy.zip" -DestinationPath "C:\\microservice\\" -Force
 
-Expand-Archive -Path "C:\\deploy.zip" -DestinationPath "C:\\inetpub\\wwwroot\\" -Force
+# Open Firewall for port 5000
+New-NetFirewallRule -DisplayName "Allow HTTP on 5000" -Direction Inbound -Protocol TCP -LocalPort 5000 -Action Allow
 
-# Restart IIS
-Restart-Service W3SVC
+# Run the microservice using Kestrel
+$env:DOTNET_ENVIRONMENT = "Production"
+Start-Process -NoNewWindow -FilePath "C:\\Program Files\\dotnet\\dotnet.exe" -ArgumentList "C:\\microservice\\YourApp.dll --urls http://0.0.0.0:5000" -PassThru
 
 Stop-Transcript
 </powershell>
@@ -77,7 +82,7 @@ resource "aws_autoscaling_group" "windows_asg" {
 
   tag {
     key                 = "windows_app"
-    value               = "v1.0.1"
+    value               = "v1.0.2"
     propagate_at_launch = true
   }
 }
