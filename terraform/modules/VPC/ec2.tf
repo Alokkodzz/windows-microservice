@@ -28,7 +28,7 @@ resource "aws_launch_template" "windows_template" {
   name_prefix   = "windows-template"
   image_id      = var.ami # Windows Server AMI
   instance_type = var.instance_type
-  key_name      = "windows"
+  key_name      = "bastionnew"
   vpc_security_group_ids = [aws_security_group.windows_asg_sg.id]
 
   user_data = base64encode(<<EOF
@@ -39,7 +39,8 @@ Start-Transcript -Path "C:\\bootstrap-log.txt"
 Install-WindowsFeature -name Web-Server -IncludeManagementTools
 
 # Deploy Microservice
-Invoke-WebRequest -Uri "https://alok-swimlaneartifacts/windows-microservice.zip" -OutFile "C:\\deploy.zip"
+Invoke-WebRequest -Uri "https://dev-swimlaneartifacts.s3.us-east-1.amazonaws.com/windows-microservice.zip" -OutFile "C:\\deploy.zip"
+
 Expand-Archive -Path "C:\\deploy.zip" -DestinationPath "C:\\inetpub\\wwwroot\\" -Force
 
 # Restart IIS
