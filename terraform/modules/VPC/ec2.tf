@@ -28,7 +28,7 @@ resource "aws_launch_template" "windows_template" {
   name_prefix   = "windows-template"
   image_id      = var.ami # Windows Server AMI
   instance_type = var.instance_type
-  key_name      = "bastionnew"
+  key_name      = "windows"
   vpc_security_group_ids = [aws_security_group.windows_asg_sg.id]
 
   user_data = base64encode(<<EOF
