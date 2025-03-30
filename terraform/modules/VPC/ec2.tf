@@ -64,9 +64,55 @@ resource "aws_autoscaling_group" "windows_asg" {
     version = "$Latest"
   }
 
+  termination_policies = ["OldestInstance"]
+
+  instance_refresh {
+    strategy = "Rolling"
+    preferences {
+      instance_warmup        = 0
+      min_healthy_percentage = 50
+      }
+  }
+
   tag {
     key                 = "windows_app"
     value               = "Windows-ASG-Instance"
     propagate_at_launch = true
+  }
+}
+
+resource "aws_lb" "windows_alb" {
+  name               = "windows-alb-tf"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.TF_SG.id]
+  subnets            = aws_subnet.TF_subnet_public[*].id
+
+
+  tags = {
+    Environment = "Dev"
+  }
+}
+
+resource "aws_lb_target_group" "windows_alb_target_group" {
+  name     = "windows-alb-target-group"
+  port     = 80
+  protocol = "HTTP"
+  vpc_id   = aws_vpc.TF_VPC.id 
+}
+
+resource "aws_autoscaling_attachment" "asg_attachment" {
+  autoscaling_group_name = aws_autoscaling_group.windows_asg.id
+  lb_target_group_arn    = aws_lb_target_group.windows_alb_target_group.arn
+}
+
+resource "aws_lb_listener" "http_listener" {
+  load_balancer_arn = aws_lb.windows_alb.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.windows_alb_target_group.arn
   }
 }
