@@ -86,8 +86,7 @@ jobs:
           sleep 240
       - name: Decrease ASG count
         run: |
-          New_count=$(aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names SB1-batch --query "AutoScalingGroups[0].DesiredCapacity")
           sleep 240
+          New_count=$(aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names SB1-batch --query "AutoScalingGroups[0].DesiredCapacity")
           Rotate_Instance=$(( New_count / 2 ))
-          sleep 120
-          aws autoscaling update-auto-scaling-group --auto-scaling-group-name SB1-batch --min-size $New_count --max-size $New_count
+          aws autoscaling update-auto-scaling-group --auto-scaling-group-name SB1-batch --min-size $Rotate_Instance --max-size $Rotate_Instance
