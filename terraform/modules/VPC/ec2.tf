@@ -19,7 +19,7 @@ resource "aws_security_group" "windows_asg_sg" {
   ingress {
     from_port   = 5001
     to_port     = 5001
-    protocol    = "tcp"
+    protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
@@ -230,7 +230,7 @@ resource "aws_autoscaling_group" "windows_asg" {
 
   tag {
     key                 = "windows_app"
-    value               = "v1.0.3"
+    value               = "v1.0.4"
     propagate_at_launch = true
   }
 }
