@@ -1,0 +1,57 @@
+name: Deploy Windows Microservice
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: terraform init
+        run: terraform init
+        working-directory: terraform
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: terraform apply
+        run: terraform apply --auto-approve
+        working-directory: terraform
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  
+  ASG_Rotation:
+    needs: terraform
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS CLI
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+      
+      - name: Doube ASG count
+        run: |
+          Current_Desired_count=$(aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names SB1-batch --query "AutoScalingGroups[0].DesiredCapacity")
+
+          New_Desired_count=$(( Current_Desired_count * 2 ))
+
+          aws autoscaling update-auto-scaling-group --auto-scaling-group-name SB1-batch --min-size $New_Desired_count --max-size $New_Desired_count
+
+          sleep 240
+      - name: Decrease ASG count
+        run: |
+          sleep 240
+          New_count=$(aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names SB1-batch --query "AutoScalingGroups[0].DesiredCapacity")
+          Rotate_Instance=$(( New_count / 2 ))
+          aws autoscaling update-auto-scaling-group --auto-scaling-group-name SB1-batch --min-size $Rotate_Instance --max-size $Rotate_Instance
