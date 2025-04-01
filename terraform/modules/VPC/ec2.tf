@@ -39,168 +39,94 @@ resource "aws_launch_template" "windows_template" {
   vpc_security_group_ids = [aws_security_group.windows_asg_sg.id]
 
   user_data = base64encode(<<EOF
-<powershell>
-<#
-.SYNOPSIS
-    Deploys a .NET application from S3 to IIS on Windows Server 2022
-.DESCRIPTION
-    This script automates the deployment of a .NET application to IIS, configuring it to be accessible at port 5000.
-.NOTES
-    File Name      : Deploy-DotNetAppToIIS.ps1
-    Prerequisites  : AWS Tools for PowerShell, Windows Server 2022
-#>
+  <powershell>
+  Start-Transcript -Path "C:\\bootstrap-log.txt"
 
-# Parameters - Update these with your specific values
+  $LocalArtifactPath = "C:\temp\app_artifact.zip"
+  $ExtractPath = "C:\inetpub\MyDotNetApp"
+  $webconfigPath = "C:\inetpub\MyDotNetApp\"
+  $SiteName = "MyDotNetApp"
+  $Port = 5000
+  $AppPoolName = "MyDotNetAppPool"
+  $AppPoolDotNetVersion = "v4.0" # Change to "No Managed Code" or "v2.0" if needed
 
-Start-Transcript -Path "C:\\bootstrap-log.txt"
+  # Step 2: Download artifact from S3
+  Write-Host "Downloading application artifact from S3..."
+  New-Item -ItemType Directory -Path "C:\temp" -Force | Out-Null
 
-$LocalArtifactPath = "C:\temp\app_artifact.zip"
-$ExtractPath = "C:\inetpub\MyDotNetApp"
-$webconfigPath = "C:\inetpub\MyDotNetApp\"
-$SiteName = "MyDotNetApp"
-$Port = 5001
-$AppPoolName = "MyDotNetAppPool"
-$AppPoolDotNetVersion = "v4.0" # Change to "No Managed Code" or "v2.0" if needed
+  Invoke-WebRequest -Uri "https://dev-swimlaneartifacts.s3.us-east-1.amazonaws.com/windows-microservice.zip" -OutFile "C:\temp\app_artifact.zip"
 
-# Install required modules if not present
-if (-not (Get-Module -ListAvailable -Name AWSPowerShell)) {
-    Install-Module -Name AWSPowerShell -Force -Confirm:$false
-}
 
-# Import required modules
-Import-Module AWSPowerShell
-Import-Module WebAdministration
+  New-Item -ItemType Directory -Path "C:\inetpub\MyDotNetApp" -Force | Out-Null
 
-# Function to check if a command succeeded
-function Test-CommandSuccess {
-    param ($ExitCode)
-    if ($ExitCode -ne 0) {
-        throw "Command failed with exit code $ExitCode"
-    }
-}
+  Expand-Archive -Path "C:\temp\app_artifact.zip" -DestinationPath "C:\inetpub\MyDotNetApp" -Force
 
-# Step 1: Install IIS and required features
-Write-Host "Installing IIS and required features..."
-$features = @(
-    "Web-Server",
-    "Web-WebServer",
-    "Web-Asp-Net45",
-    "Web-ISAPI-Ext",
-    "Web-ISAPI-Filter",
-    "Web-Mgmt-Tools",
-    "Web-Mgmt-Console"
-)
+  # Step 4: Configure IIS Application Pool
+  Write-Host "Configuring IIS Application Pool..."
 
-foreach ($feature in $features) {
-    if (-not (Get-WindowsFeature -Name $feature).Installed) {
-        Add-WindowsFeature -Name $feature | Out-Null
-        Write-Host "Installed feature: $feature"
-    }
-}
+  Remove-WebAppPool -Name $AppPoolName
 
-# Step 2: Download artifact from S3
-Write-Host "Downloading application artifact from S3..."
-if (-not (Test-Path -Path "C:\temp")) {
-    New-Item -ItemType Directory -Path "C:\temp" -Force | Out-Null
-}
-Invoke-WebRequest -Uri "https://dev-swimlaneartifacts.s3.us-east-1.amazonaws.com/windows-microservice.zip" -OutFile $LocalArtifactPath
-#Read-S3Object -BucketName $S3BucketName -Key $S3ObjectKey -File $LocalArtifactPath
-if (-not (Test-Path -Path $LocalArtifactPath)) {
-    throw "Failed to download artifact from S3"
-}
 
-# Step 3: Extract the artifact
-Write-Host "Extracting application files..."
-if (Test-Path -Path $ExtractPath) {
-    Remove-Item -Path $ExtractPath -Recurse -Force
-}
-New-Item -ItemType Directory -Path $ExtractPath -Force | Out-Null
+  $appPool = New-WebAppPool -Name $AppPoolName
+  $appPool.managedRuntimeVersion = $AppPoolDotNetVersion
+  $appPool.autoStart = $true
+  $appPool.startMode = "AlwaysRunning"
+  $appPool.processModel.idleTimeout = [TimeSpan]::FromMinutes(0)
+  $appPool | Set-Item
 
-Expand-Archive -Path $LocalArtifactPath -DestinationPath $ExtractPath -Force
+  # Step 5: Create IIS Website
+  Write-Host "Creating IIS Website..."
+  Remove-Website -Name $SiteName
 
-# Step 4: Configure IIS Application Pool
-Write-Host "Configuring IIS Application Pool..."
-if (Test-Path "IIS:\AppPools\$AppPoolName") {
-    Remove-WebAppPool -Name $AppPoolName
-}
+  New-Website -Name $SiteName -Port $Port -PhysicalPath "C:\inetpub\MyDotNetApp" -ApplicationPool $AppPoolName -Force | Out-Null
 
-$appPool = New-WebAppPool -Name $AppPoolName
-$appPool.managedRuntimeVersion = $AppPoolDotNetVersion
-$appPool.autoStart = $true
-$appPool.startMode = "AlwaysRunning"
-$appPool.processModel.idleTimeout = [TimeSpan]::FromMinutes(0)
-$appPool | Set-Item
+  # Step 7: Configure Firewall
+  Write-Host "Configuring Windows Firewall..."
 
-# Step 5: Create IIS Website
-Write-Host "Creating IIS Website..."
-if (Get-Website -Name $SiteName -ErrorAction SilentlyContinue) {
-    Stop-Website -Name $SiteName
-    Remove-Website -Name $SiteName
-}
+  New-NetFirewallRule -Name "IIS-$Port-In" -DisplayName "IIS-$Port (In)" -Protocol TCP -LocalPort $Port -Action Allow -Enabled True | Out-Null
 
-New-Website -Name $SiteName -Port $Port -PhysicalPath $ExtractPath -ApplicationPool $AppPoolName -Force | Out-Null
 
-# Step 6: Configure Application for /api/hello
-Write-Host "Configuring application for /api/hello endpoint..."
-$apiPath = "$ExtractPath\api\hello"
-if (-not (Test-Path -Path $apiPath)) {
-    Write-Warning "The /api/hello path doesn't exist in your application. Please ensure your application handles this route."
-}
+  # Step 8: Start the website
+  Write-Host "Starting the website..."
+  Start-Website -Name $SiteName
 
-# Step 7: Configure Firewall
-Write-Host "Configuring Windows Firewall..."
-if (-not (Get-NetFirewallRule -Name "IIS-$Port-In" -ErrorAction SilentlyContinue)) {
-    New-NetFirewallRule -Name "IIS-$Port-In" -DisplayName "IIS-$Port (In)" -Protocol TCP -LocalPort $Port -Action Allow -Enabled True | Out-Null
-}
+  Write-Host @"
+  Deployment completed successfully!
+  Your application should now be accessible at:
+  http://<public-ip>:$Port/api/hello
 
-# Step 8: Start the website
-Write-Host "Starting the website..."
-Start-Website -Name $SiteName
+  To find your public IP, you can run:
+  (Invoke-WebRequest -Uri 'https://api.ipify.org' -UseBasicParsing).Content
+  "@
 
-# Step 9: Verify deployment
-Write-Host "Verifying deployment..."
-$status = Get-Website -Name $SiteName | Select-Object -ExpandProperty State
-if ($status -ne "Started") {
-    throw "Website failed to start. Current status: $status"
-}
+  # Backup existing web.config
+  Rename-Item "C:\inetpub\MyDotNetApp\web.config" "C:\inetpub\MyDotNetApp\web.config.bak" -Force -ErrorAction SilentlyContinue
 
-Write-Host @"
-Deployment completed successfully!
-Your application should now be accessible at:
-http://<public-ip>:$Port/api/hello
+  # Create new minimal web.config
+  @"
+  <?xml version="1.0" encoding="utf-8"?>
+  <configuration>
+    <system.webServer>
+      <handlers>
+        <add name="aspNetCore" path="*" verb="*" modules="AspNetCoreModuleV2" resourceType="Unspecified" />
+      </handlers>
+      <aspNetCore processPath="C:\Program Files\dotnet\dotnet.exe" arguments=".\Microservice.dll" stdoutLogEnabled="true" stdoutLogFile=".\logs\stdout" />
+    </system.webServer>
+  </configuration>
+  "@ | Out-File "C:\inetpub\MyDotNetApp\web.config" -Encoding utf8
 
-To find your public IP, you can run:
-(Invoke-WebRequest -Uri 'https://api.ipify.org' -UseBasicParsing).Content
-"@
+  # Verify XML syntax
+  try {
+      [xml](Get-Content "C:\inetpub\MyDotNetApp\web.config") | Out-Null
+      Write-Host "web.config XML syntax is valid"
+  } catch {
+      Write-Host "Invalid XML in web.config: $_"
+  }
 
-# Backup existing web.config
-Rename-Item "$webconfigPath\web.config" "$webconfigPath\web.config.bak" -Force -ErrorAction SilentlyContinue
+  iisreset
 
-# Create new minimal web.config
-@"
-<?xml version="1.0" encoding="utf-8"?>
-<configuration>
-  <system.webServer>
-    <handlers>
-      <add name="aspNetCore" path="*" verb="*" modules="AspNetCoreModuleV2" resourceType="Unspecified" />
-    </handlers>
-    <aspNetCore processPath="C:\Program Files\dotnet\dotnet.exe" arguments=".\MyDotNetApp.dll" stdoutLogEnabled="true" stdoutLogFile=".\logs\stdout" />
-  </system.webServer>
-</configuration>
-"@ | Out-File "$webconfigPath\web.config" -Encoding utf8
-
-# Verify XML syntax
-try {
-    [xml](Get-Content "$webconfigPath\web.config") | Out-Null
-    Write-Host "web.config XML syntax is valid"
-} catch {
-    Write-Host "Invalid XML in web.config: $_"
-}
-
-iisreset
-
-Stop-Transcript
-</powershell>
+  Stop-Transcript
+  </powershell>
 EOF
   )
 }
@@ -230,7 +156,7 @@ resource "aws_autoscaling_group" "windows_asg" {
 
   tag {
     key                 = "windows_app"
-    value               = "v1.0.4"
+    value               = "v1.0.5"
     propagate_at_launch = true
   }
 }
@@ -250,9 +176,19 @@ resource "aws_lb" "windows_alb" {
 
 resource "aws_lb_target_group" "windows_alb_target_group" {
   name     = "windows-alb-target-group"
-  port     = 80
+  port     = 5000
   protocol = "HTTP"
-  vpc_id   = aws_vpc.TF_VPC.id 
+  vpc_id   = aws_vpc.TF_VPC.id
+
+  health_check {
+    path                = "/api/hello"  # Or a dedicated health endpoint
+    port                = "traffic-port" # Uses the same port (5002)
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+    timeout             = 5
+    interval            = 30
+    matcher             = "200-399"  # Success HTTP codes
+  }
 }
 
 resource "aws_autoscaling_attachment" "asg_attachment" {
