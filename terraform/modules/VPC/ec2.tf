@@ -127,8 +127,8 @@ resource "aws_launch_template" "windows_template" {
 
   Stop-Transcript
   </powershell>
-EOF
-  )
+  EOF
+    )
 }
 
 
@@ -156,7 +156,7 @@ resource "aws_autoscaling_group" "windows_asg" {
 
   tag {
     key                 = "windows_app"
-    value               = "v1.0.5"
+    value               = "v1.0.6"
     propagate_at_launch = true
   }
 }
