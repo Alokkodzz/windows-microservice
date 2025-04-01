@@ -18,7 +18,7 @@ resource "aws_security_group" "windows_asg_sg" {
 
   ingress {
     from_port   = 5001
-    to_port     = 5001
+    to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
