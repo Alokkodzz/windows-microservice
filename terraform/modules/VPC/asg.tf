@@ -39,74 +39,22 @@ resource "aws_launch_template" "windows_template" {
   vpc_security_group_ids = [aws_security_group.windows_asg_sg.id]
 
   user_data = base64encode(<<-EOF
-    <powershell>
-    Start-Transcript -Path "C:\\bootstrap-log.txt"
-    $LocalArtifactPath = "C:\temp\app_artifact.zip"
-	  $ExtractPath = "C:\inetpub\MyDotNetApp"
-	  $webconfigPath = "C:\inetpub\MyDotNetApp\"
-	  $SiteName = "MyDotNetApp"
-	  $Port = 5000
-	  $AppPoolName = "MyDotNetAppPool"
-	  $AppPoolDotNetVersion = "v4.0" # Change to "No Managed Code" or "v2.0" if needed
-    # Step 2: Download artifact from S3
-    Write-Host "Downloading application artifact from S3..."
-    New-Item -ItemType Directory -Path "C:\temp" -Force | Out-Null
-    
-    Invoke-WebRequest -Uri "https://dev-swimlaneartifacts.s3.us-east-1.amazonaws.com/windows-microservice.zip" -OutFile "C:\temp\app_artifact.zip"
-    
-    New-Item -ItemType Directory -Path "C:\inetpub\MyDotNetApp" -Force | Out-Null
-    Expand-Archive -Path "C:\temp\app_artifact.zip" -DestinationPath "C:\inetpub\MyDotNetApp\" -Force
-    # Step 4: Configure IIS Application Pool
-    Write-Host "Configuring IIS Application Pool..."
-    Remove-WebAppPool -Name $AppPoolName
-    $appPool = New-WebAppPool -Name $AppPoolName
-    $appPool.managedRuntimeVersion = $AppPoolDotNetVersion
-    $appPool.autoStart = $true
-    $appPool.startMode = "AlwaysRunning"
-    $appPool.processModel.idleTimeout = [TimeSpan]::FromMinutes(0)
-    $appPool | Set-Item
-    # Step 5: Create IIS Website
-    Write-Host "Creating IIS Website..."
-    Remove-Website -Name $SiteName
-    New-Website -Name $SiteName -Port $Port -PhysicalPath "C:\inetpub\MyDotNetApp" -ApplicationPool $AppPoolName -Force | Out-Null
-    # Step 7: Configure Firewall
-    Write-Host "Configuring Windows Firewall..."
-    New-NetFirewallRule -Name "IIS-$Port-In" -DisplayName "IIS-$Port (In)" -Protocol TCP -LocalPort $Port -Action Allow -Enabled True | Out-Null
-    # Step 8: Start the website
-    Write-Host "Starting the website..."
-    Start-Website -Name $SiteName
-    Write-Host @"
-    Deployment completed successfully!
-    Your application should now be accessible at:
-    http://<public-ip>:$Port/api/hello
-    To find your public IP, you can run:
-    (Invoke-WebRequest -Uri 'https://api.ipify.org' -UseBasicParsing).Content
-    "@
-    # Backup existing web.config
-    Rename-Item "C:\inetpub\MyDotNetApp\web.config" "C:\inetpub\MyDotNetApp\web.config.bak" -Force -ErrorAction SilentlyContinue
-    # Create new minimal web.config
-    @"
-    <?xml version="1.0" encoding="utf-8"?>
-    <configuration>
-	  <system.webServer>
-	    <handlers>
-		  <add name="aspNetCore" path="*" verb="*" modules="AspNetCoreModuleV2" resourceType="Unspecified" />
-	    </handlers>
-	    <aspNetCore processPath="C:\Program Files\dotnet\dotnet.exe" arguments=".\Microservice.dll" stdoutLogEnabled="true" stdoutLogFile=".\logs\stdout" />
-	  </system.webServer>
-    </configuration>
-    "@ | Out-File "C:\inetpub\MyDotNetApp\web.config" -Encoding utf8
-    # Verify XML syntax
-    try {
-	    [xml](Get-Content "C:\inetpub\MyDotNetApp\web.config") | Out-Null
-	    Write-Host "web.config XML syntax is valid"
-    } catch {
-	    Write-Host "Invalid XML in web.config: $_"
-    }
-    
-    iisreset
-    Stop-Transcript
-    </powershell>
+<powershell>
+Start-Transcript -Path "C:\\bootstrap-log.txt"
+
+# Deploy Microservice
+Invoke-WebRequest -Uri "https://dev-swimlaneartifacts.s3.us-east-1.amazonaws.com/windows-microservice.zip" -OutFile "C:\\deploy.zip"
+Expand-Archive -Path "C:\\deploy.zip" -DestinationPath "C:\\microservice\\" -Force
+
+# Open Firewall for port 5000
+New-NetFirewallRule -DisplayName "Allow HTTP on 5000" -Direction Inbound -Protocol TCP -LocalPort 5000 -Action Allow
+
+# Run the microservice using Kestrel
+$env:DOTNET_ENVIRONMENT = "Production"
+Start-Process -NoNewWindow -FilePath "C:\\Program Files\\dotnet\\dotnet.exe" -ArgumentList "C:\inetpub\MyDotNetApp\Microservice.dll --urls http://0.0.0.0:5000" -PassThru
+
+Stop-Transcript
+</powershell>
     EOF
   )
 }
