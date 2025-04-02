@@ -39,23 +39,12 @@ resource "aws_launch_template" "windows_template" {
   vpc_security_group_ids = [aws_security_group.windows_asg_sg.id]
 
   user_data = base64encode(<<-EOF
-<powershell>
-Start-Transcript -Path "C:\\bootstrap-log.txt"
-
-# Deploy Microservice
-Invoke-WebRequest -Uri "https://dev-swimlaneartifacts.s3.us-east-1.amazonaws.com/windows-microservice.zip" -OutFile "C:\\deploy.zip"
-Expand-Archive -Path "C:\\deploy.zip" -DestinationPath "C:\\microservice\\" -Force
-
-# Open Firewall for port 5000
-New-NetFirewallRule -DisplayName "Allow HTTP on 5000" -Direction Inbound -Protocol TCP -LocalPort 5000 -Action Allow
-
-# Run the microservice using Kestrel
-$env:DOTNET_ENVIRONMENT = "Production"
-Start-Process -NoNewWindow -FilePath "C:\\Program Files\\dotnet\\dotnet.exe" -ArgumentList "C:\inetpub\MyDotNetApp\Microservice.dll --urls http://0.0.0.0:5000" -PassThru
-
-Stop-Transcript
-</powershell>
-    EOF
+    <powershell>
+    Start-Transcript -Path "C:\\bootstrap-log.txt"
+    Invoke-WebRequest -Uri "https://dev-swimlaneartifacts.s3.us-east-1.amazonaws.com/windows-microservice.zip" -OutFile "C:\temp\app_artifact.zip"
+    Stop-Transcript
+    </powershell>
+  EOF
   )
 }
 
