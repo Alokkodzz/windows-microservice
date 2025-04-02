@@ -55,7 +55,7 @@ resource "aws_launch_template" "windows_template" {
     Invoke-WebRequest -Uri "https://dev-swimlaneartifacts.s3.us-east-1.amazonaws.com/windows-microservice.zip" -OutFile "C:\temp\app_artifact.zip"
     
     New-Item -ItemType Directory -Path "C:\inetpub\MyDotNetApp" -Force | Out-Null
-    Expand-Archive -Path "C:\temp\app_artifact.zip" -DestinationPath "C:\inetpub\MyDotNetApp" -Force
+    Expand-Archive -Path "C:\temp\app_artifact.zip" -DestinationPath "C:\inetpub\MyDotNetApp\" -Force
     # Step 4: Configure IIS Application Pool
     Write-Host "Configuring IIS Application Pool..."
     Remove-WebAppPool -Name $AppPoolName
@@ -136,7 +136,7 @@ resource "aws_autoscaling_group" "windows_asg" {
 
   tag {
     key                 = "windows_app"
-    value               = "v1.0.7"
+    value               = "v1.0.8"
     propagate_at_launch = true
   }
 }
