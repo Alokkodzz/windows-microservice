@@ -9,7 +9,7 @@ namespace Microservice.Controllers
         [HttpGet]
         public IActionResult GetMessage()
         {
-            return Ok("Hello from Alok!!!!!!!!");
+            return Ok("Application is working fine!!!!!!!!");
         }
     }
 }

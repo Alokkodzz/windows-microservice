@@ -40,9 +40,10 @@ resource "aws_launch_template" "windows_template" {
 
   user_data = base64encode(<<-EOF
     <powershell>
-    Start-Transcript -Path "C:\\bootstrap-log.txt"
-    Invoke-WebRequest -Uri "https://dev-swimlaneartifacts.s3.us-east-1.amazonaws.com/windows-microservice.zip" -OutFile "C:\temp\app_artifact.zip"
-    Stop-Transcript
+      Start-Transcript -Path "C:\\bootstrap-log.txt"
+      Invoke-WebRequest "https://dev-swimlaneartifacts.s3.us-east-1.amazonaws.com/bootstrap.ps1" -OutFile "C:\\bootstrap.ps1"
+      & "C:\\bootstrap.ps1"
+      stop-Transcript
     </powershell>
   EOF
   )
@@ -72,7 +73,7 @@ resource "aws_autoscaling_group" "windows_asg" {
   }
 
   tag {
-    key                 = "windows_app"
+    key                 = "version"
     value               = "v1.0.8"
     propagate_at_launch = true
   }
@@ -93,7 +94,7 @@ resource "aws_lb" "windows_alb" {
 
 resource "aws_lb_target_group" "windows_alb_target_group" {
   name     = "windows-alb-target-group"
-  port     = 5000
+  port     = 5002
   protocol = "HTTP"
   vpc_id   = aws_vpc.TF_VPC.id
 
