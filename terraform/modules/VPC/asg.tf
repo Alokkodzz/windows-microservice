@@ -45,6 +45,7 @@ resource "aws_launch_template" "windows_template" {
       & "C:\\bootstrap.ps1"
       stop-Transcript
     </powershell>
+    <persist>true</persist>
   EOF
   )
 }
@@ -74,7 +75,7 @@ resource "aws_autoscaling_group" "windows_asg" {
 
   tag {
     key                 = "version"
-    value               = "v1.0.8"
+    value               = "v1.0.9"
     propagate_at_launch = true
   }
 }
