@@ -45,6 +45,7 @@ resource "aws_launch_template" "windows_template" {
       & "C:\\bootstrap.ps1"
       stop-Transcript
     </powershell>
+    <persist>true</persist>
   EOF
   )
 }
