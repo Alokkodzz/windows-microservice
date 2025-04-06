@@ -5,37 +5,22 @@ on:
     branches: [ main ]
 
 jobs:
-  build:
-    runs-on: windows-latest
+  Trigger_Build:
+    runs-on: ubuntu-latest
+    
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v3
+        
+      - name: AWs login
+        uses: aws-actions/configure-aws-credentials@v2
         with:
-          dotnet-version: '6.0.x'
-
-      - name: Restore Dependencies
-        run: dotnet restore src/Microservice.sln
-
-      - name: Build
-        run: dotnet build src/Microservice.sln --configuration Release
-
-      - name: Publish
-        run: dotnet publish src/Microservice/Microservice.csproj -c Release -o ./publish
-
-      - name: Zip the Windows Microservice
-        run: | 
-          powershell Compress-Archive -Path ./publish/* -DestinationPath ./windows-microservice.zip
-      - name: Upload ZIP to S3
-        run: aws s3 cp ./windows-microservice.zip s3://dev-swimlaneartifacts/
-        env: 
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1  
 
   terraform:
-    needs: build
+    needs: Trigger_Build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
