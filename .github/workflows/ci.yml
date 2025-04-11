@@ -10,7 +10,7 @@ on:
 jobs:
   build-test:
     name: Build and Test
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
 
     steps:
       - name: checkout code
@@ -47,7 +47,7 @@ jobs:
   code-build:
     name: Code Build
     needs: build-test
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
       - name: checkout code
@@ -66,7 +66,7 @@ jobs:
 
   terraform:
     needs: code-build
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
