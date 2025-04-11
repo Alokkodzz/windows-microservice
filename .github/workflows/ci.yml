@@ -35,7 +35,7 @@ jobs:
           dotnet test src/Microservice.sln --no-build --collect:"XPlat Code Coverage" --results-directory ./TestResults
 
       - name: upload code coverage report
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: coverage-report
           path: ./TestResults
