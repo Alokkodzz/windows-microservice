@@ -22,7 +22,7 @@ jobs:
           dotnet-version: '6.0.x'
         
       - name: restore dependencies
-        run: detnet restore src/Microservice.sln
+        run: dotnet restore src/Microservice.sln
 
       - name: Check code formatting (lint)
         run: dotnet format src/Microservice.sln --verify-no-changes --severity error
