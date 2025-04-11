@@ -41,7 +41,7 @@ jobs:
           AWS_REGION: us-east-1
         run: |
           # Find coverage file (Cobertura format)
-          COV_FILE=$(find ./TestResults -name "coverage.cobertura.xml" | head -n 1)
+          COV_FILE=$(find . -type f -name "coverage.cobertura.xml" | head -n 1)
           aws s3 cp "$COV_FILE" s3://covdevalok/coverage-reports/coverage-$(date +%s).xml
   
   code-build:
