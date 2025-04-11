@@ -46,7 +46,6 @@ jobs:
   
   code-build:
     name: Code Build
-    needs: build-test
     runs-on: self-hosted
 
     steps:
