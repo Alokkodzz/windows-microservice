@@ -10,7 +10,7 @@ on:
 jobs:
   build-test:
     name: Build and Test
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
 
     steps:
       - name: checkout code
@@ -33,6 +33,16 @@ jobs:
       - name: test with coverage
         run: |
           dotnet test src/Microservice.sln --no-build --collect:"XPlat Code Coverage" --results-directory ./TestResults
+          
+      - name: Upload coverage report to S3
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: us-east-1
+        run: |
+          # Find coverage file (Cobertura format)
+          COV_FILE=$(find ./TestResults -name "coverage.cobertura.xml" | head -n 1)
+          aws s3 cp "$COV_FILE" s3://covdevalok/coverage-reports/coverage-$(date +%s).xml
   
   code-build:
     name: Code Build
