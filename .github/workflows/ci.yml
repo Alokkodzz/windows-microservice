@@ -1,29 +1,67 @@
-name: CI for Windows Microservice
+name: CI for the application FTD
 
 on:
   pull_request:
-    branches: [ main ]
+    branches:
+      - main
+    paths-ignore:
+      - 'README.md'
 
 jobs:
-  Trigger_Build:
+  build-test:
+    name: Build and Test
     runs-on: ubuntu-latest
-    
+
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
+      - name: checkout code
+        uses: actions/checkout@v4
+      
+      - name: set up dotnet
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: '6.0.x'
         
+      - name: restore dependencies
+        run: detnet restore src/Microservice.sln
+
+      - name: Check code formatting (lint)
+        run: dotnet format src/Microservice.sln --verify-no-changes --severity error
+
+      - name: build-test
+        run: dotnet build src/Microservice.sln --no-restore
+
+      - name: test with coverage
+        run: |
+          dotnet test src/Microservice.sln --no-build --collect:"XPlat Code Coverage" --results-directory ./TestResults
+
+      - name: upload code coverage report
+        uses: actions/upload-artifact@v2
+        with:
+          name: coverage-report
+          path: ./TestResults
+  
+  code-build:
+    name: Code Build
+    needs: build-test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v4
+
       - name: AWs login
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
+
       - name: Triggering aws code build
         run: |
           aws codebuild start-build --project-name Win_app
 
   terraform:
-    needs: Trigger_Build
+    needs: code-build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -53,4 +91,4 @@ jobs:
         working-directory: terraform
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }} 
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
