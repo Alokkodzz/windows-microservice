@@ -10,7 +10,7 @@ on:
 jobs:
   build-test:
     name: Build and Test
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
 
     steps:
       - name: checkout code
