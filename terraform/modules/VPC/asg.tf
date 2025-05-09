@@ -75,7 +75,7 @@ resource "aws_autoscaling_group" "windows_asg" {
 
   tag {
     key                 = "version"
-    value               = "v1.1.1"
+    value               = "v1.2.0"
     propagate_at_launch = true
   }
 }
