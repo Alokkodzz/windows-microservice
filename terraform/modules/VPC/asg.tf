@@ -41,7 +41,7 @@ resource "aws_launch_template" "windows_template" {
   user_data = base64encode(<<-EOF
     <powershell>
       Start-Transcript -Path "C:\\bootstrap-log.txt"
-      Invoke-WebRequest "https://dev-swimlaneartifacts.s3.us-east-1.amazonaws.com/bootstrap.ps1" -OutFile "C:\\bootstrap.ps1"
+      Invoke-WebRequest "https://alok-production-artifacts.s3.us-east-1.amazonaws.com/bootstrap.ps1" -OutFile "C:\\bootstrap.ps1"
       & "C:\\bootstrap.ps1"
       stop-Transcript
     </powershell>
