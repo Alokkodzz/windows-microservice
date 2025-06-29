@@ -1,0 +1,20 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      dotnet: 6.0
+    commands:
+      - echo "Installing dependencies..."
+      - dotnet restore src/Microservice.sln
+    build:
+      commands:
+        - echo "Building the .NET 6.0 application..."
+        - dotnet build src/Microservice.sln --configuration Release
+    post_build:
+      commands:
+        - echo "Build completed on `date`"
+        - dotnet publish src/Microservice/Microservice.csproj -c Release -o ./publish
+    artifacts:
+      files:
+        - publish/**/*
